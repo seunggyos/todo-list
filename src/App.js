@@ -1,18 +1,27 @@
 import { v4 as uuid } from "uuid";
 import "./App.css";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { RadioGroup } from "./components/RadioGroup";
+import { Select } from "./components/Select";
+import { TodoItem } from "./components/TodoItem";
+import { Button } from "./components/Button";
 
 function App() {
   // state 새로운 값으로 대체한다
   const [inputValue, setInputValue] = useState("");
   const [todos, setTodos] = useState([]);
-  const [sort, setSort] = useState("");
+  const [sort, setSort] = useState("NONE");
   const [filter, setFilter] = useState("ALL");
+  const [updateTargetId, setUpdateTargetId] = useState("");
 
-  const [updateValue, setUpdateValue] = useState("");
-  const [updateTargetIndex, setUpdateTargetIndex] = useState(-1);
+  useEffect(() => {
+    const storedTodos = JSON.parse(localStorage.getItem("todos"));
+    if (!storedTodos || storedTodos.length === 0) return;
+    setTodos(storedTodos);
+  }, []);
+
   /** computedValue */
-  const isUpdateMode = updateTargetIndex >= 0;
+  const isUpdateMode = Boolean(updateTargetId);
 
   const computedTodos = todos
     .filter((todo) => {
@@ -21,51 +30,46 @@ function App() {
       if (filter === "NOT_DONE") return todo.isDone === false;
     })
     .sort((a, b) => {
-      if (sort === "none") return 0;
-      if (sort === "createdAt") return b.createdAt - a.createdAt;
-      if (sort === "content") return a.content.localeCompare(b.content);
+      if (sort === "NONE") return 0;
+      if (sort === "CREATED_AT") return b.createdAt - a.createdAt;
+      if (sort === "CONTENT") return a.content.localeCompare(b.content);
     });
+
+  const updateTodos = (nextTodos) => {
+    localStorage.setItem("todos", JSON.stringify(nextTodos));
+    setTodos(nextTodos);
+  };
 
   return (
     <div className="App">
-      <h1>TODO LIST</h1>
-      <div>
-        <label>필터 : </label>
-        <input
-          type="radio"
-          value="ALL"
-          checked={filter === "ALL"}
-          onChange={(e) => setFilter(e.target.value)}
-        />
-        <label>전체</label>
-        <input
-          type="radio"
-          value="DONE"
-          checked={filter === "DONE"}
-          onChange={(e) => setFilter(e.target.value)}
-        />
-        <label>완료</label>
-        <input
-          type="radio"
-          value="NOT_DONE"
-          checked={filter === "NOT_DONE"}
-          onChange={(e) => setFilter(e.target.value)}
-        />
-        <label>미완료</label>
-      </div>
-      <div>
-        <label htmlFor="sort">정렬 : </label>
-        <select value={sort} onChange={(e) => setSort(e.target.value)}>
-          <option value="none">생성순</option>
-          <option value="createdAt">최신순</option>
-          <option value="content">가나다순</option>
-        </select>
+      <h1 className="header">TODO LIST</h1>
+      <div className="filter-container">
+        <div>
+          <span>필터 : </span>
+          <RadioGroup
+            values={["ALL", "DONE", "NOT_DONE"]}
+            labels={["전체", "완료", "미완료"]}
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          />
+        </div>
+
+        <div>
+          <span htmlFor="sort">정렬 : </span>
+          <Select
+            values={["NONE", "CREATED_AT", "CONTENT"]}
+            labels={["생성순", "최신순", "가나다순"]}
+            value={sort}
+            onChange={(e) => setSort(e.target.value)}
+          />
+        </div>
       </div>
       {/*
       SPA(Single Page Application), CSR(client Side Rendering  <-> SSR, Server side rendering)
       client가 dom그리기를 제어한다.
       */}
       <form
+        className="add-input-container"
         onSubmit={(e) => {
           // form은 기본적으로 새로고침을 trigger, why? 새로운 html파일을 내려받아야하니까
           e.preventDefault();
@@ -76,11 +80,12 @@ function App() {
             isDone: false,
             createdAt: Date.now(),
           };
-          setTodos([...todos, newTodo]);
+          updateTodos([...todos, newTodo]);
           setInputValue("");
         }}
       >
         <input
+          className="add-input"
           // Input의 제어권을 React(JS)가 가지고 있을 수 있게, state값을 주입했다.
           value={inputValue}
           // Input의 값이 변하는 이벤트가 발생했을 때, 제어권을 가진 React(JS)의 state값을 변경한다.
@@ -89,64 +94,27 @@ function App() {
           }}
           disabled={isUpdateMode}
         />
-        <button disabled={!inputValue || isUpdateMode}>{"ADD"}</button>
+        <Button disabled={!inputValue || isUpdateMode}>{"ADD"}</Button>
       </form>
-      <div>
-        {computedTodos.map((todo, index) => (
-          <div key={todo.id}>
-            <input
-              type="checkbox"
-              checked={todo.isDone}
-              onChange={(e) => {
-                const nextTodos = todos.map((todo, idx) =>
-                  idx === index ? { ...todo, isDone: e.target.checked } : todo
-                );
-                setTodos(nextTodos);
-              }}
-            />
-            {updateTargetIndex === index ? (
-              <input
-                value={updateValue}
-                onChange={(e) => setUpdateValue(e.target.value)}
-              />
-            ) : (
-              <span
-                style={{ textDecoration: todo.isDone ? "line-through" : "" }}
-              >
-                {todo.content}
-              </span>
-            )}
-            <button
-              onClick={() => {
-                const nextTodos = todos.filter((_, idx) => idx !== index);
-                setTodos(nextTodos);
-              }}
-              disabled={isUpdateMode}
-            >
-              DEL
-            </button>
-            <button
-              onClick={() => {
-                if (isUpdateMode) {
-                  const nextTodos = todos.map((todo, index) =>
-                    index === updateTargetIndex
-                      ? { ...todo, content: updateValue }
-                      : todo
-                  );
-                  setTodos(nextTodos);
-                  setUpdateValue("");
-                  setUpdateTargetIndex(-1);
-                  return;
-                }
 
-                setUpdateTargetIndex(index);
-                setUpdateValue(todo.content);
-              }}
-              disabled={isUpdateMode && index !== updateTargetIndex}
-            >
-              UPDATE
-            </button>
-          </div>
+      <div className="todo-list-container">
+        {computedTodos.map((todo) => (
+          <TodoItem
+            key={todo.id}
+            todo={todo}
+            updateTargetId={updateTargetId}
+            setUpdateTargetId={setUpdateTargetId}
+            onTodoListDelete={(itemId) => {
+              const nextTodos = todos.filter((item) => item.id !== itemId);
+              updateTodos(nextTodos);
+            }}
+            onTodoListUpdate={(itemId, nextTodo) => {
+              const nextTodos = todos.map((todo) =>
+                todo.id === itemId ? { ...todo, ...nextTodo } : todo
+              );
+              updateTodos(nextTodos);
+            }}
+          />
         ))}
       </div>
     </div>
